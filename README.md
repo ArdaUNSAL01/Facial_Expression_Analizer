@@ -1,4 +1,4 @@
-#Facial Emotion and Micro-Expression Analyzer 🎭
+## Facial Emotion and Micro-Expression Analyzer 🎭
 
 Welcome to my project! This repository contains a real-time Python application that captures a live camera feed to analyze facial emotions and measure micro-expressions (like eyebrow movements) simultaneously. 
 
