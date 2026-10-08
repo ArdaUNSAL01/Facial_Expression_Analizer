@@ -67,7 +67,7 @@ To achieve my goal of building a comprehensive data measurement tool, I plan to 
 * **Live Graphing Dashboard:** Real-time matplotlib/PyQt graphing alongside the camera window.
 
 ## 🤝 AI Assistance & Transparency
-In the spirit of honesty and modern software development, I would like to acknowledge that Gemini AI was utilized as a pair-programming assistant during the development of this project. It provided valuable guidance in debugging, ensuring cross-library version compatibility (such as migrating to the new MediaPipe Tasks API), solving complex Linux-specific environment and display server issues (such as Wayland vs X11 compatibility), and structuring the code for optimal stability.
+While the core application and logic were developed independently, Gemini 3.1 was utilized specifically to assist with advanced bug fixing, resolving cross-library compatibility issues, and diagnosing complex Linux-specific environment conflicts.
 
 Feel free to explore the code, open issues, or suggest improvements. Happy coding!
 
