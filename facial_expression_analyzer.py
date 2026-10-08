@@ -1,5 +1,16 @@
 import sys
 import os
+
+if not sys.platform.startswith('win'):
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+
+
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+
 import math
 import urllib.request
 import threading
