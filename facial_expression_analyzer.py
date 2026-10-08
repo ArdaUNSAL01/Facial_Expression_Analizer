@@ -256,14 +256,28 @@ class FacialExpressionAnalyzer:
             self.camera.release()
             cv2.destroyAllWindows()
             
-            if self.data_records:
+            import datetime
                 df = pd.DataFrame(self.data_records)
-                df.to_csv("results.csv", index=False)
-                print(f"Saved {len(self.data_records)} records to 'results.csv'.")
+                csv_path = os.path.join(self.current_dir, "results.csv")
+                df.to_csv(csv_path, index=False, sep=';', encoding="utf-8-sig")
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                history_csv_path = os.path.join(self.current_dir, f"results_{timestamp}.csv")
+                df.to_csv(history_csv_path, index=False, sep=';', encoding="utf-8-sig")
+                print(f"[BAŞARILI] {len(self.data_records)} adet analiz kaydı yerel dosyalara kaydedildi:")
+                print(f" -> Güncel dosya: {csv_path}")
+                print(f" -> Arşiv dosyası: {history_csv_path}")
             else:
-                print("No face data to save.")
+                print("Kaydedilecek yüz verisi bulunamadı.")
 
 
 if __name__ == "__main__":
-    app = FacialExpressionAnalyzer()
-    app.run()
+    try:
+        app = FacialExpressionAnalyzer()
+        app.run()
+    except Exception as e:
+        import traceback
+        print("\n========================================================")
+        print("[KRİTİK HATA] Program beklenmeyen bir hata ile karşılaştı:")
+        traceback.print_exc()
+        print("========================================================")
+        input("Pencereyi kapatmak için Enter'a basın...")
