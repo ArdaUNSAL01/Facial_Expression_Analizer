@@ -28,7 +28,6 @@ A major architectural upgrade has been implemented:
 2. **Face ROI Cropping & 5x Acceleration:** The face region is automatically cropped from MediaPipe landmarks before feeding into DeepFace with `detector_backend='skip'`. This eliminates room/background noise, increases emotion sharpness, and delivers a 4-5x speedup.
 3. **468-Point Mesh & Vector HUD:** The live camera window now renders the full 468-point facial mesh, a dynamic bounding box (`Face Tracked`), color-coded measurement lines (yellow for eyebrows, cyan for IPD baseline, magenta/orange for mouth), and a translucent HUD info panel.
 4. **Rich Multidimensional Logging:** `results.csv` now captures individual left/right eyebrow ratios, mouth opening, smile width, and EAR alongside the preserved `Micro_Expression_Distance` metric.
-5. **Technical Documentation:** An in-depth mathematical and algorithmic explanation guide has been added in [EKLEMELER_VE_MANTIK.md](EKLEMELER_VE_MANTIK.md).
 
 ---
 
