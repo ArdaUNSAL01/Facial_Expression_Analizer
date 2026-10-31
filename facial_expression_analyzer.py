@@ -1,15 +1,75 @@
 import sys
 import os
 
+_script_path = os.path.abspath(__file__)
+_venv_python = os.path.join(os.path.dirname(_script_path), ".venv", "bin", "python")
+if (
+    os.path.isfile(_venv_python)
+    and os.environ.get("FACIAL_VENV_REEXEC") != "1"
+    and os.path.realpath(sys.executable) != os.path.realpath(_venv_python)
+):
+    os.environ["FACIAL_VENV_REEXEC"] = "1"
+    os.execv(_venv_python, [_venv_python] + sys.argv)
+
+import locale
+
+for _loc in ("C.UTF-8", "C"):
+    try:
+        locale.setlocale(locale.LC_ALL, _loc)
+        break
+    except locale.Error:
+        continue
+
+
 if not sys.platform.startswith('win'):
     os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
 
 
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
 
 _current_dir = os.path.dirname(os.path.abspath(__file__))
+
+def install_missing_packages():
+    import subprocess
+    import sys
+    import importlib.metadata
+
+    requirements = {
+        "opencv-python": None,
+        "deepface": None,
+        "mediapipe": None,
+        "pandas": None,
+        "tf_keras": None
+    }
+
+    missing_or_wrong = []
+    for pkg, target_version in requirements.items():
+        try:
+            installed_version = importlib.metadata.version(pkg)
+            if target_version and installed_version != target_version:
+                missing_or_wrong.append(f"{pkg}=={target_version}")
+        except importlib.metadata.PackageNotFoundError:
+            if target_version:
+                missing_or_wrong.append(f"{pkg}=={target_version}")
+            else:
+                missing_or_wrong.append(pkg)
+
+    if missing_or_wrong:
+        print(f"\n[BİLGİ] Gerekli veya uyumsuz kütüphaneler tespit edildi. Doğru sürümler yükleniyor:")
+        print(f" -> {', '.join(missing_or_wrong)}")
+        print("[BİLGİ] Bu işlem internet hızınıza bağlı olarak birkaç dakika sürebilir. Lütfen bekleyin...\n")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user"] + missing_or_wrong)
+            print("\n[BAŞARILI] Kütüphaneler başarıyla yüklendi! Program yeniden başlatılıyor...")
+            import os
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        except Exception as e:
+            print(f"\n[HATA] Yükleme sırasında hata oluştu: {e}")
+            input("Devam etmek/Çıkmak için Enter'a basın...")
+            sys.exit(1)
+
+install_missing_packages()
 
 import math
 import urllib.request
@@ -32,18 +92,38 @@ if sys.platform.startswith('win'):
 class FacialExpressionAnalyzer:
     def __init__(self):
         self.camera = cv2.VideoCapture(0)
-        
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.model_path = os.path.join(current_dir, "face_landmarker.task")
-        
+        if not self.camera.isOpened() and not sys.platform.startswith('win'):
+            self.camera = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        if not self.camera.isOpened():
+            self.camera = cv2.VideoCapture(1)
+
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        potential_model_paths = [
+            os.path.join(self.current_dir, "face_landmarker.task"),
+            "/home/arda/Masaüstü/Facial/Facial_Expression_Analizer-main/face_landmarker.task",
+            "/home/arda/Masaüstü/Facial/face_landmarker.task",
+            "/home/arda/Masaüstü/face_landmarker.task"
+        ]
+        found_model = None
+        for p in potential_model_paths:
+            if os.path.isfile(p) and os.path.getsize(p) > 0:
+                found_model = p
+                break
+
+        self.model_path = found_model or os.path.join(self.current_dir, "face_landmarker.task")
+
         if not os.path.exists(self.model_path):
             print("MediaPipe modeli indiriliyor, lütfen bekleyin...")
             url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-            urllib.request.urlretrieve(url, self.model_path)
-            
+            try:
+                urllib.request.urlretrieve(url, self.model_path)
+            except Exception as e:
+                print(f"Model indirme bildirimi: {e}")
+
         with open(self.model_path, "rb") as f:
             model_buffer = f.read()
-            
+
         base_options = python.BaseOptions(model_asset_buffer=model_buffer)
         options = vision.FaceLandmarkerOptions(
             base_options=base_options,
@@ -51,7 +131,7 @@ class FacialExpressionAnalyzer:
             num_faces=1
         )
         self.face_detector = vision.FaceLandmarker.create_from_options(options)
-        
+
         self.data_records = []
         self.frame_counter = 0
         self.current_emotion = "Calculating..."
@@ -61,11 +141,11 @@ class FacialExpressionAnalyzer:
         nose = face_landmarks[168]
         eyebrow = face_landmarks[336]
         raw_distance = math.hypot(eyebrow.x - nose.x, eyebrow.y - nose.y)
-        
+
         left_eye = face_landmarks[33]
         right_eye = face_landmarks[263]
         eye_distance = math.hypot(right_eye.x - left_eye.x, right_eye.y - left_eye.y)
-        
+
         if eye_distance > 0:
             return raw_distance / eye_distance
         return raw_distance
@@ -122,7 +202,7 @@ class FacialExpressionAnalyzer:
         x_max = min(w, max(xs) + 15)
         y_min = max(0, min(ys) - 15)
         y_max = min(h, max(ys) + 15)
-        
+
         cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 220, 255), 2)
         cv2.putText(frame, "Face Tracked", (x_min, max(20, y_min - 8)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 255), 1)
@@ -202,6 +282,8 @@ class FacialExpressionAnalyzer:
             return
 
         print("Program started. Press 'q' to quit.")
+        window_seen = False
+        missing_count = 0
         try:
             while True:
                 success, frame = self.camera.read()
@@ -210,15 +292,15 @@ class FacialExpressionAnalyzer:
                     break
 
                 self.frame_counter += 1
-                
+
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-                
+
                 detection_result = self.face_detector.detect(mp_image)
                 metrics = None
                 face_landmarks = None
                 face_roi = None
-                
+
                 if detection_result.face_landmarks and len(detection_result.face_landmarks) > 0:
                     face_landmarks = detection_result.face_landmarks[0]
                     metrics = self.calculate_metrics(face_landmarks)
@@ -258,22 +340,40 @@ class FacialExpressionAnalyzer:
                 self.draw_hud(frame, metrics)
 
                 cv2.imshow("Facial Emotion and Expression Analysis", frame)
-                
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == 27:
                     print("Quitting...")
                     break
 
+                try:
+                    visible = cv2.getWindowProperty("Facial Emotion and Expression Analysis", cv2.WND_PROP_VISIBLE) >= 1
+                except cv2.error:
+                    visible = False
+
+                if visible:
+                    window_seen = True
+                    missing_count = 0
+                elif window_seen:
+                    missing_count += 1
+                    if missing_count > 15:
+                        print("Pencere kapatıldı, çıkılıyor...")
+                        break
+
+        except KeyboardInterrupt:
+            print("\n[Ctrl+C] Program durduruldu, kamera serbest bırakılıyor...")
         finally:
             self.camera.release()
             cv2.destroyAllWindows()
-            
-            import datetime
+
+            if self.data_records:
+                import datetime
                 df = pd.DataFrame(self.data_records)
                 csv_path = os.path.join(self.current_dir, "results.csv")
-                df.to_csv(csv_path, index=False, sep=';', encoding="utf-8-sig")
+                df.to_csv(csv_path, index=False, encoding="utf-8-sig")
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 history_csv_path = os.path.join(self.current_dir, f"results_{timestamp}.csv")
-                df.to_csv(history_csv_path, index=False, sep=';', encoding="utf-8-sig")
+                df.to_csv(history_csv_path, index=False, encoding="utf-8-sig")
                 print(f"[BAŞARILI] {len(self.data_records)} adet analiz kaydı yerel dosyalara kaydedildi:")
                 print(f" -> Güncel dosya: {csv_path}")
                 print(f" -> Arşiv dosyası: {history_csv_path}")
@@ -282,13 +382,27 @@ class FacialExpressionAnalyzer:
 
 
 if __name__ == "__main__":
+    import signal
+
+    def _sinyal_ile_durdur(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _sinyal_ile_durdur)
+    signal.signal(signal.SIGINT, _sinyal_ile_durdur)
+
     try:
         app = FacialExpressionAnalyzer()
         app.run()
+    except KeyboardInterrupt:
+        print("\nProgram kapatıldı.")
     except Exception as e:
         import traceback
         print("\n========================================================")
         print("[KRİTİK HATA] Program beklenmeyen bir hata ile karşılaştı:")
         traceback.print_exc()
         print("========================================================")
-        input("Pencereyi kapatmak için Enter'a basın...")
+        if sys.stdin.isatty():
+            try:
+                input("Pencereyi kapatmak için Enter'a basın...")
+            except (EOFError, KeyboardInterrupt):
+                pass
