@@ -30,53 +30,61 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 
-def install_missing_packages():
-    import subprocess
-    import sys
+# Eski sürümde burada eksik paketler habersizce `pip install --user` ile
+# kuruluyordu. Bu, TensorFlow sürümüyle uyumsuz bir tf-keras kurulmasına ve
+# programın açılışta "register_load_context_function" hatasıyla çökmesine yol
+# açabiliyordu. Artık paket kurmuyoruz; yalnızca eksikse anlaşılır mesaj veriyoruz.
+def check_dependencies():
+    """
+    Gerekli paketlerin kurulu olup olmadığını kontrol eder.
+
+    Eksik paket varsa Türkçe bir hata mesajı yazıp programı durdurur.
+    Paket kurmaz; böylece kullanıcının ortamı habersiz değiştirilmez.
+    """
     import importlib.metadata
 
-    requirements = {
-        "opencv-python": None,
-        "deepface": None,
-        "mediapipe": None,
-        "pandas": None,
-        "tf_keras": None
-    }
-
-    missing_or_wrong = []
-    for pkg, target_version in requirements.items():
+    # Bu eski sürümün gerçekten ihtiyaç duyduğu paketler.
+    required_packages = ("opencv-python", "deepface", "mediapipe", "pandas", "tf_keras")
+    missing = []
+    for package in required_packages:
         try:
-            installed_version = importlib.metadata.version(pkg)
-            if target_version and installed_version != target_version:
-                missing_or_wrong.append(f"{pkg}=={target_version}")
+            importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:
-            if target_version:
-                missing_or_wrong.append(f"{pkg}=={target_version}")
-            else:
-                missing_or_wrong.append(pkg)
+            missing.append(package)
 
-    if missing_or_wrong:
-        print(f"\n[BİLGİ] Gerekli veya uyumsuz kütüphaneler tespit edildi. Doğru sürümler yükleniyor:")
-        print(f" -> {', '.join(missing_or_wrong)}")
-        print("[BİLGİ] Bu işlem internet hızınıza bağlı olarak birkaç dakika sürebilir. Lütfen bekleyin...\n")
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user"] + missing_or_wrong)
-            print("\n[BAŞARILI] Kütüphaneler başarıyla yüklendi! Program yeniden başlatılıyor...")
-            import os
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-        except Exception as e:
-            print(f"\n[HATA] Yükleme sırasında hata oluştu: {e}")
-            input("Devam etmek/Çıkmak için Enter'a basın...")
-            sys.exit(1)
+    if missing:
+        sys.exit(
+            "Eksik paket(ler): " + ", ".join(missing) + "\n"
+            "Bu eski sürüm DeepFace/TensorFlow kullanır. Kurmak için:\n"
+            "    python3 -m pip install --user opencv-python deepface mediapipe pandas tf-keras\n"
+            "Not: TensorFlow 2.16+ ile tf-keras sürümü uyumlu olmalıdır."
+        )
 
-install_missing_packages()
+
+check_dependencies()
 
 import math
 import urllib.request
 import threading
 import cv2
 import pandas as pd
-from deepface import DeepFace
+
+# DeepFace, TensorFlow üzerinden tf-keras'ı yükler. TF 2.16+ ile eski bir
+# tf-keras (ör. 2.15) birlikte kullanılırsa import sırasında AttributeError
+# oluşur. Hatayı ham stack trace yerine anlaşılır bir mesajla yakalıyoruz.
+try:
+    from deepface import DeepFace
+except (ImportError, AttributeError) as exc:
+    sys.exit(
+        "DeepFace yüklenemedi.\n"
+        f"Hata: {exc}\n"
+        "Bu genellikle TensorFlow ile tf-keras sürümlerinin uyumsuz olmasından kaynaklanır.\n"
+        "Çözüm: tf-keras'ı TensorFlow sürümünüzle eşleştirin, örnek:\n"
+        "    python3 -m pip install --user --upgrade 'tf-keras==2.21.0'\n"
+        "veya Facial1 klasöründeki .venv ile çalıştırın:\n"
+        "    .venv/bin/python eski_kod_yorumsuz.py"
+    )
+
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
